@@ -37,6 +37,8 @@ builder.Services.AddDbContext<MyDatabaseContext>(options =>
 	options.UseSqlite(builder.Configuration.GetConnectionString("MyDatabase")!);
 });
 
+builder.Services.AddAcmeSettings(builder.Configuration);
+
 builder.Services.AddHostedService<Program>();
 
 await builder.Build().RunAsync();
@@ -46,7 +48,8 @@ partial class Program(
 	IOptions<AppSettings> appSettings,
 	ILogger<Program> logger,
 	ThirdPartyService thirdPartyService,
-	IServiceProvider serviceProvider
+	IServiceProvider serviceProvider,
+	AcmeService acmeService
 ) : BackgroundService
 {
 	private readonly MyDatabaseContext _dbContext = dbContext;
@@ -54,6 +57,7 @@ partial class Program(
 	private readonly ILogger<Program> _logger = logger;
 	private readonly ThirdPartyService _thirdPartyService = thirdPartyService;
 	private readonly IServiceProvider _serviceProvider = serviceProvider;
+	private readonly AcmeService _acmeService = acmeService;
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
@@ -63,6 +67,7 @@ partial class Program(
 			ShowThirdPartyService();
 			ShowDisposable();
 			await ShowEntityFrameworkAsync(stoppingToken);
+			await ShowAcmeAsync(stoppingToken);
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -115,6 +120,14 @@ partial class Program(
 			{
 				_logger.LogInformation("Bar: {Bar}", bar.Name);
 			}
+		}
+	}
+
+	private async Task ShowAcmeAsync(CancellationToken stoppingToken)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			await _acmeService.DoSomethingAsync(stoppingToken);
 		}
 	}
 }
