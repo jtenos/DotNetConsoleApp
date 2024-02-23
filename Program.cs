@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.Text.Json;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
@@ -68,6 +69,7 @@ partial class Program(
 			ShowDisposable();
 			await ShowEntityFrameworkAsync(stoppingToken);
 			await ShowAcmeAsync(stoppingToken);
+			ShowBogus();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -129,5 +131,11 @@ partial class Program(
 		{
 			await _acmeService.DoSomethingAsync(stoppingToken);
 		}
+	}
+
+	private void ShowBogus()
+	{
+		BogusPerson person = BogusPerson.Generate();
+		_logger.LogInformation("{person}", JsonSerializer.Serialize(person, new JsonSerializerOptions { WriteIndented = true }));
 	}
 }
