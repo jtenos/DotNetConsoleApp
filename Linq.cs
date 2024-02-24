@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Bogus;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 namespace DotNetConsoleApp;
@@ -36,7 +37,7 @@ internal class Linq(ILogger<Linq> logger)
 			select new { Year = year, NumVehicles = count }
 		).ToList();
 
-		_logger.LogInformation("{vehiclesByMake}", 
+		_logger.LogInformation("{vehiclesByMake}",
 			JsonSerializer.Serialize(vehiclesByMake, new JsonSerializerOptions { WriteIndented = true })
 		);
 
@@ -44,4 +45,32 @@ internal class Linq(ILogger<Linq> logger)
 			JsonSerializer.Serialize(vehiclesByYear, new JsonSerializerOptions { WriteIndented = true })
 		);
 	}
+
+	public void ShowLeftJoin()
+	{
+		Food food1 = new(1, "Pizza");
+		Food food2 = new(2, "Pasta");
+		Food[] foods = [food1, food2];
+
+		Person person1 = new(1, "Diana", food1);
+		Person person2 = new(2, "Clark", food2);
+		Person person3 = new(3, "Bruce", null);
+		Person[] people = [person1, person2, person3];
+
+		var peopleWithFoods = (
+			from person in people
+			from food in foods.Where(f => f.ID == person.FavoriteFood?.ID).DefaultIfEmpty()
+			select new
+			{
+				person.ID,
+				person.Name,
+				FavoriteFoodName = food?.Name
+			}
+		);
+
+		_logger.LogInformation("{people}", JsonSerializer.Serialize(peopleWithFoods, new JsonSerializerOptions { WriteIndented = true }));
+	}
+
+	private record class Food(int ID, string Name);
+	private record class Person(int ID, string Name, Food? FavoriteFood);
 }

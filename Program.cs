@@ -87,6 +87,7 @@ partial class Program(
 			await _compression.ShowGZipAsync();
 			_hashing.ShowHashing();
 			_linq.ShowLinqGroupBy();
+			_linq.ShowLeftJoin();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
