@@ -8,6 +8,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.IO.Hashing;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -72,8 +74,9 @@ partial class Program(
 			await ShowEntityFrameworkAsync(stoppingToken);
 			await ShowAcmeAsync(stoppingToken);
 			ShowBogus();
-			ShowBrotli();
-			ShowGZip();
+			await ShowBrotliAsync();
+			await ShowGZipAsync();
+			ShowHashing();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -143,27 +146,39 @@ partial class Program(
 		_logger.LogInformation("{person}", JsonSerializer.Serialize(person, new JsonSerializerOptions { WriteIndented = true }));
 	}
 
-	private void ShowBrotli()
+	private async Task ShowBrotliAsync()
 	{
-		byte[] inputBytes = Encoding.UTF8.GetBytes(
+		ReadOnlyMemory<byte> inputBytes = Encoding.UTF8.GetBytes(
 			string.Join(" ", Enumerable.Range(0, 500).Select(i => new Faker().Lorem.Word()))
 		);
-		byte[] compressedBytes = Brotli.Compress(inputBytes);
-		byte[] outputBytes = Brotli.Decompress(compressedBytes);
+		ReadOnlyMemory<byte> compressedBytes = await Brotli.CompressAsync(inputBytes);
+		ReadOnlyMemory<byte> outputBytes = await Brotli.DecompressAsync(compressedBytes);
 		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
 			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
-		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.SequenceEqual(outputBytes));
+		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.Span.SequenceEqual(outputBytes.Span));
 	}
 
-	private void ShowGZip()
+	private async Task ShowGZipAsync()
 	{
-		byte[] inputBytes = Encoding.UTF8.GetBytes(
+		ReadOnlyMemory<byte> inputBytes = Encoding.UTF8.GetBytes(
 			string.Join(" ", Enumerable.Range(0, 500).Select(i => new Faker().Lorem.Word()))
 		);
-		byte[] compressedBytes = GZip.Compress(inputBytes);
-		byte[] outputBytes = GZip.Decompress(compressedBytes);
+		ReadOnlyMemory<byte> compressedBytes = await GZip.CompressAsync(inputBytes);
+		ReadOnlyMemory<byte> outputBytes = await GZip.DecompressAsync(compressedBytes);
 		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
 			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
-		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.SequenceEqual(outputBytes));
+		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.Span.SequenceEqual(outputBytes.Span));
+	}
+
+	private void ShowHashing()
+	{
+		byte[] input = new Faker().Random.Bytes(500);
+		byte[] crc = Crc32.Hash(input);
+		byte[] sha = SHA256.HashData(input);
+		byte[] md5 = MD5.HashData(input);
+
+		_logger.LogInformation("CRC32: {crc32}", BitConverter.ToString(crc).Replace("-", ""));
+		_logger.LogInformation("SHA-256: {sha}", BitConverter.ToString(sha).Replace("-", ""));
+		_logger.LogInformation("MD5: {md5}", BitConverter.ToString(md5).Replace("-", ""));
 	}
 }

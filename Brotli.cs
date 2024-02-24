@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Buffers;
+using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 
@@ -8,48 +9,70 @@ internal static class Brotli
 {
 	const int BUFFER_SIZE = 0x4000;
 
-	public static void Compress(Stream inputStream, Stream outputStream)
+	public static async Task CompressAsync(Stream inputStream, Stream outputStream)
 	{
-		Span<byte> buffer = stackalloc byte[BUFFER_SIZE];
-		using BrotliStream brotli = new(outputStream, CompressionMode.Compress);
+		Memory<byte> buffer = ArrayPool<byte>.Shared.Rent(BUFFER_SIZE);
+		using BrotliStream compressionStream = new(outputStream, CompressionMode.Compress);
 		int count;
-		while ((count = inputStream.Read(buffer)) > 0)
+		while ((count = await inputStream.ReadAsync(buffer)) > 0)
 		{
-			brotli.Write(buffer[..count]);
+			await compressionStream.WriteAsync(buffer[..count]);
 		}
 	}
 
-	public static void Decompress(Stream inputStream, Stream outputStream)
+	public static async Task DecompressAsync(Stream inputStream, Stream outputStream)
 	{
-		Span<byte> buffer = stackalloc byte[BUFFER_SIZE];
-		using BrotliStream brotli = new(inputStream, CompressionMode.Decompress);
+		Memory<byte> buffer = ArrayPool<byte>.Shared.Rent(BUFFER_SIZE);
+		using BrotliStream compressionStream = new(inputStream, CompressionMode.Decompress);
 		int count;
-		while ((count = brotli.Read(buffer)) > 0)
+		while ((count = await compressionStream.ReadAsync(buffer)) > 0)
 		{
-			outputStream.Write(buffer[..count]);
+			await outputStream.WriteAsync(buffer[..count]);
 		}
 	}
 
-	public static byte[] Compress(byte[] input)
+	public static async Task<ReadOnlyMemory<byte>> CompressAsync(ReadOnlyMemory<byte> input)
 	{
-		using MemoryStream inputStream = new(input);
+		using MemoryStream inputStream = new(input.Length);
+		inputStream.Write(input.Span);
+		inputStream.Position = 0;
 		using MemoryStream outputStream = new();
-		Compress(inputStream, outputStream);
+		await CompressAsync(inputStream, outputStream);
 		return outputStream.ToArray();
 	}
 
-	public static byte[] Decompress(byte[] input)
+	public static async Task<ReadOnlyMemory<byte>> DecompressAsync(ReadOnlyMemory<byte> input)
 	{
-		using MemoryStream inputStream = new(input);
+		using MemoryStream inputStream = new(input.Length);
+		inputStream.Write(input.Span);
+		inputStream.Position = 0;
 		using MemoryStream outputStream = new();
-		Decompress(inputStream, outputStream);
+		await DecompressAsync(inputStream, outputStream);
 		return outputStream.ToArray();
 	}
 
-	public static byte[] CompressString(string input) => Compress(Encoding.UTF8.GetBytes(input));
-	public static string DecompressToString(byte[] input) => Encoding.UTF8.GetString(Decompress(input));
+	public static async Task<byte[]> CompressAsync(byte[] input)
+	{
+		using MemoryStream inputStream = new(input);
+		using MemoryStream outputStream = new();
+		await CompressAsync(inputStream, outputStream);
+		return outputStream.ToArray();
+	}
 
-	public static void CompressFile(string inputFileName)
+	public static async Task<byte[]> DecompressAsync(byte[] input)
+	{
+		using MemoryStream inputStream = new(input);
+		using MemoryStream outputStream = new();
+		await DecompressAsync(inputStream, outputStream);
+		return outputStream.ToArray();
+	}
+
+	public static async Task<ReadOnlyMemory<byte>> CompressStringAsync(string input)
+		=> await CompressAsync(Encoding.UTF8.GetBytes(input));
+	public static async Task<string> DecompressToStringAsync(ReadOnlyMemory<byte> input)
+		=> Encoding.UTF8.GetString((await DecompressAsync(input)).Span);
+
+	public static async Task CompressFileAsync(string inputFileName)
 	{
 		string outputFileName = $"{inputFileName}.br";
 		if (File.Exists(outputFileName))
@@ -58,10 +81,10 @@ internal static class Brotli
 		}
 		using FileStream inputStream = File.OpenRead(inputFileName);
 		using FileStream outputStream = File.OpenWrite(outputFileName);
-		Compress(inputStream, outputStream);
+		await CompressAsync(inputStream, outputStream);
 	}
 
-	public static void DecompressFile(string inputFileName)
+	public static async Task DecompressFileAsync(string inputFileName)
 	{
 		if (!inputFileName.EndsWith(".br", ignoreCase: true, CultureInfo.InvariantCulture))
 		{
@@ -74,6 +97,6 @@ internal static class Brotli
 		}
 		using FileStream inputStream = File.OpenRead(inputFileName);
 		using FileStream outputStream = File.OpenWrite(outputFileName);
-		Decompress(inputStream, outputStream);
+		await DecompressAsync(inputStream, outputStream);
 	}
 }
