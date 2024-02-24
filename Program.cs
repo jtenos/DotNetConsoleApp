@@ -1,4 +1,5 @@
-﻿using DotNetConsoleApp;
+﻿using Bogus;
+using DotNetConsoleApp;
 using DotNetConsoleApp.Config;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.Text;
 using System.Text.Json;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder();
@@ -70,6 +72,7 @@ partial class Program(
 			await ShowEntityFrameworkAsync(stoppingToken);
 			await ShowAcmeAsync(stoppingToken);
 			ShowBogus();
+			ShowBrotli();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -137,5 +140,17 @@ partial class Program(
 	{
 		BogusPerson person = BogusPerson.Generate();
 		_logger.LogInformation("{person}", JsonSerializer.Serialize(person, new JsonSerializerOptions { WriteIndented = true }));
+	}
+
+	private void ShowBrotli()
+	{
+		byte[] inputBytes = Encoding.UTF8.GetBytes(
+			string.Join(" ", Enumerable.Range(0, 5000).Select(i => new Faker().Lorem.Word()))
+		);
+		byte[] compressedBytes = Brotli.Compress(inputBytes);
+		byte[] outputBytes = Brotli.Decompress(compressedBytes);
+		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
+			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
+		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.SequenceEqual(outputBytes));
 	}
 }
