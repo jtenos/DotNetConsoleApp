@@ -36,6 +36,9 @@ builder.Services.AddThirdPartyService(options =>
 });
 
 builder.Services.AddScoped<MyDisposable>();
+builder.Services.AddSingleton<Hashing>();
+builder.Services.AddSingleton<Compression>();
+builder.Services.AddSingleton<Linq>();
 
 builder.Services.AddDbContext<MyDatabaseContext>(options =>
 {
@@ -54,7 +57,10 @@ partial class Program(
 	ILogger<Program> logger,
 	ThirdPartyService thirdPartyService,
 	IServiceProvider serviceProvider,
-	AcmeService acmeService
+	AcmeService acmeService,
+	Hashing hashing,
+	Compression compression,
+	Linq linq
 ) : BackgroundService
 {
 	private readonly MyDatabaseContext _dbContext = dbContext;
@@ -63,6 +69,9 @@ partial class Program(
 	private readonly ThirdPartyService _thirdPartyService = thirdPartyService;
 	private readonly IServiceProvider _serviceProvider = serviceProvider;
 	private readonly AcmeService _acmeService = acmeService;
+	private readonly Hashing _hashing = hashing;
+	private readonly Compression _compression = compression;
+	private readonly Linq _linq = linq;
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
@@ -74,9 +83,10 @@ partial class Program(
 			await ShowEntityFrameworkAsync(stoppingToken);
 			await ShowAcmeAsync(stoppingToken);
 			ShowBogus();
-			await ShowBrotliAsync();
-			await ShowGZipAsync();
-			ShowHashing();
+			await _compression.ShowBrotliAsync();
+			await _compression.ShowGZipAsync();
+			_hashing.ShowHashing();
+			_linq.ShowLinqGroupBy();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -144,41 +154,5 @@ partial class Program(
 	{
 		BogusPerson person = BogusPerson.Generate();
 		_logger.LogInformation("{person}", JsonSerializer.Serialize(person, new JsonSerializerOptions { WriteIndented = true }));
-	}
-
-	private async Task ShowBrotliAsync()
-	{
-		ReadOnlyMemory<byte> inputBytes = Encoding.UTF8.GetBytes(
-			string.Join(" ", Enumerable.Range(0, 500).Select(i => new Faker().Lorem.Word()))
-		);
-		ReadOnlyMemory<byte> compressedBytes = await Brotli.CompressAsync(inputBytes);
-		ReadOnlyMemory<byte> outputBytes = await Brotli.DecompressAsync(compressedBytes);
-		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
-			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
-		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.Span.SequenceEqual(outputBytes.Span));
-	}
-
-	private async Task ShowGZipAsync()
-	{
-		ReadOnlyMemory<byte> inputBytes = Encoding.UTF8.GetBytes(
-			string.Join(" ", Enumerable.Range(0, 500).Select(i => new Faker().Lorem.Word()))
-		);
-		ReadOnlyMemory<byte> compressedBytes = await GZip.CompressAsync(inputBytes);
-		ReadOnlyMemory<byte> outputBytes = await GZip.DecompressAsync(compressedBytes);
-		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
-			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
-		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.Span.SequenceEqual(outputBytes.Span));
-	}
-
-	private void ShowHashing()
-	{
-		byte[] input = new Faker().Random.Bytes(500);
-		byte[] crc = Crc32.Hash(input);
-		byte[] sha = SHA256.HashData(input);
-		byte[] md5 = MD5.HashData(input);
-
-		_logger.LogInformation("CRC32: {crc32}", BitConverter.ToString(crc).Replace("-", ""));
-		_logger.LogInformation("SHA-256: {sha}", BitConverter.ToString(sha).Replace("-", ""));
-		_logger.LogInformation("MD5: {md5}", BitConverter.ToString(md5).Replace("-", ""));
 	}
 }
