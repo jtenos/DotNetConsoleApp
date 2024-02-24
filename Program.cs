@@ -73,6 +73,7 @@ partial class Program(
 			await ShowAcmeAsync(stoppingToken);
 			ShowBogus();
 			ShowBrotli();
+			ShowGZip();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -145,10 +146,22 @@ partial class Program(
 	private void ShowBrotli()
 	{
 		byte[] inputBytes = Encoding.UTF8.GetBytes(
-			string.Join(" ", Enumerable.Range(0, 5000).Select(i => new Faker().Lorem.Word()))
+			string.Join(" ", Enumerable.Range(0, 500).Select(i => new Faker().Lorem.Word()))
 		);
 		byte[] compressedBytes = Brotli.Compress(inputBytes);
 		byte[] outputBytes = Brotli.Decompress(compressedBytes);
+		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
+			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
+		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.SequenceEqual(outputBytes));
+	}
+
+	private void ShowGZip()
+	{
+		byte[] inputBytes = Encoding.UTF8.GetBytes(
+			string.Join(" ", Enumerable.Range(0, 500).Select(i => new Faker().Lorem.Word()))
+		);
+		byte[] compressedBytes = GZip.Compress(inputBytes);
+		byte[] outputBytes = GZip.Decompress(compressedBytes);
 		_logger.LogInformation("Input length: {inputLength}, Compressed length: {compressedLength}",
 			inputBytes.Length.ToString("#,##0"), compressedBytes.Length.ToString("#,##0"));
 		_logger.LogInformation("Input matches output: {isMatch}", inputBytes.SequenceEqual(outputBytes));

@@ -4,27 +4,27 @@ using System.Text;
 
 namespace DotNetConsoleApp;
 
-internal static class Brotli
+internal static class GZip
 {
 	const int BUFFER_SIZE = 0x4000;
 
 	public static void Compress(Stream inputStream, Stream outputStream)
 	{
 		Span<byte> buffer = stackalloc byte[BUFFER_SIZE];
-		using BrotliStream brotli = new(outputStream, CompressionMode.Compress);
+		using GZipStream gzip = new(outputStream, CompressionMode.Compress);
 		int count;
 		while ((count = inputStream.Read(buffer)) > 0)
 		{
-			brotli.Write(buffer[..count]);
+			gzip.Write(buffer[..count]);
 		}
 	}
 
 	public static void Decompress(Stream inputStream, Stream outputStream)
 	{
 		Span<byte> buffer = stackalloc byte[BUFFER_SIZE];
-		using BrotliStream brotli = new(inputStream, CompressionMode.Decompress);
+		using GZipStream gzip = new(inputStream, CompressionMode.Decompress);
 		int count;
-		while ((count = brotli.Read(buffer)) > 0)
+		while ((count = gzip.Read(buffer)) > 0)
 		{
 			outputStream.Write(buffer[..count]);
 		}
@@ -51,7 +51,7 @@ internal static class Brotli
 
 	public static void CompressFile(string inputFileName)
 	{
-		string outputFileName = $"{inputFileName}.br";
+		string outputFileName = $"{inputFileName}.gz";
 		if (File.Exists(outputFileName))
 		{
 			throw new IOException($"File {outputFileName} already exists");
@@ -63,9 +63,9 @@ internal static class Brotli
 
 	public static void DecompressFile(string inputFileName)
 	{
-		if (!inputFileName.EndsWith(".br", ignoreCase: true, CultureInfo.InvariantCulture))
+		if (!inputFileName.EndsWith(".gz", ignoreCase: true, CultureInfo.InvariantCulture))
 		{
-			throw new ArgumentException("File must have .br extension", nameof(inputFileName));
+			throw new ArgumentException("File must have .gz extension", nameof(inputFileName));
 		}
 		string outputFileName = inputFileName[..^3];
 		if (File.Exists(outputFileName))
