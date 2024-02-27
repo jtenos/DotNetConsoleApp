@@ -15,9 +15,12 @@ using System.Text.Json;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
-// VS: Manage User Secrets
-// CLI: dotnet user-secrets init; dotnet user-secrets set "AppSettings:Number" 888
-builder.Configuration.AddUserSecrets<Program>();
+if (builder.Environment.IsDevelopment())
+{
+    // VS: Manage User Secrets
+    // CLI: dotnet user-secrets init; dotnet user-secrets set "AppSettings:Number" 888
+    builder.Configuration.AddUserSecrets<Program>();
+}
 
 Log.Logger = new LoggerConfiguration()
 	.ReadFrom.Configuration(builder.Configuration)
