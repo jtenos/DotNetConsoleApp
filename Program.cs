@@ -17,9 +17,9 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
 if (builder.Environment.IsDevelopment())
 {
-    // VS: Manage User Secrets
-    // CLI: dotnet user-secrets init; dotnet user-secrets set "AppSettings:Number" 888
-    builder.Configuration.AddUserSecrets<Program>();
+	// VS: Manage User Secrets
+	// CLI: dotnet user-secrets init; dotnet user-secrets set "AppSettings:Number" 888
+	builder.Configuration.AddUserSecrets<Program>();
 }
 
 Log.Logger = new LoggerConfiguration()
@@ -54,27 +54,35 @@ builder.Services.AddHostedService<Program>();
 
 await builder.Build().RunAsync();
 
-partial class Program(
-	MyDatabaseContext dbContext,
-	IOptions<AppSettings> appSettings,
-	ILogger<Program> logger,
-	ThirdPartyService thirdPartyService,
-	IServiceProvider serviceProvider,
-	AcmeService acmeService,
-	Hashing hashing,
-	Compression compression,
-	Linq linq
-) : BackgroundService
+partial class Program : BackgroundService
 {
-	private readonly MyDatabaseContext _dbContext = dbContext;
-	private readonly IOptions<AppSettings> _appSettings = appSettings;
-	private readonly ILogger<Program> _logger = logger;
-	private readonly ThirdPartyService _thirdPartyService = thirdPartyService;
-	private readonly IServiceProvider _serviceProvider = serviceProvider;
-	private readonly AcmeService _acmeService = acmeService;
-	private readonly Hashing _hashing = hashing;
-	private readonly Compression _compression = compression;
-	private readonly Linq _linq = linq;
+	private readonly IServiceScope _scope;
+	private readonly MyDatabaseContext _dbContext;
+	private readonly IOptions<AppSettings> _appSettings;
+	private readonly ILogger<Program> _logger;
+	private readonly ThirdPartyService _thirdPartyService;
+	private readonly IServiceProvider _serviceProvider;
+	private readonly AcmeService _acmeService;
+	private readonly Hashing _hashing;
+	private readonly Compression _compression;
+	private readonly Linq _linq;
+
+	public Program(IServiceProvider serviceProvider)
+	{
+		// You cannot create a scoped service inside of a singleton (Program is a singleton because it was registered as a hosted service)
+		// So, you have to create a scope to get the scoped services
+		_scope = serviceProvider.CreateScope();
+
+		_dbContext = _scope.ServiceProvider.GetRequiredService<MyDatabaseContext>();
+		_appSettings = _scope.ServiceProvider.GetRequiredService<IOptions<AppSettings>>();
+		_logger = _scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+		_thirdPartyService = _scope.ServiceProvider.GetRequiredService<ThirdPartyService>();
+		_serviceProvider = serviceProvider;
+		_acmeService = _scope.ServiceProvider.GetRequiredService<AcmeService>();
+		_hashing = _scope.ServiceProvider.GetRequiredService<Hashing>();
+		_compression = _scope.ServiceProvider.GetRequiredService<Compression>();
+		_linq = _scope.ServiceProvider.GetRequiredService<Linq>();
+	}
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
@@ -127,6 +135,7 @@ partial class Program(
 
 	private async Task ShowEntityFrameworkAsync(CancellationToken stoppingToken)
 	{
+		_logger.LogInformation("In ShowEntityFrameworkAsync");
 		await _dbContext.Database.EnsureCreatedAsync(stoppingToken);
 		Foo foo1 = new() { Name = "First Foo" };
 		foo1.Bars.Add(new() { Name = "First Bar" });
