@@ -1,6 +1,8 @@
 ﻿using Bogus;
+using Dapper;
 using DotNetConsoleApp;
 using DotNetConsoleApp.Config;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.Diagnostics;
 using System.IO.Hashing;
 using System.Security.Cryptography;
 using System.Text;
@@ -58,6 +61,7 @@ partial class Program : BackgroundService
 {
 	private readonly IServiceScope _scope;
 	private readonly MyDatabaseContext _dbContext;
+	private readonly IConfiguration _config;
 	private readonly IOptions<AppSettings> _appSettings;
 	private readonly ILogger<Program> _logger;
 	private readonly ThirdPartyService _thirdPartyService;
@@ -74,6 +78,7 @@ partial class Program : BackgroundService
 		_scope = serviceProvider.CreateScope();
 
 		_dbContext = _scope.ServiceProvider.GetRequiredService<MyDatabaseContext>();
+		_config = _scope.ServiceProvider.GetRequiredService<IConfiguration>();
 		_appSettings = _scope.ServiceProvider.GetRequiredService<IOptions<AppSettings>>();
 		_logger = _scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 		_thirdPartyService = _scope.ServiceProvider.GetRequiredService<ThirdPartyService>();
@@ -92,6 +97,7 @@ partial class Program : BackgroundService
 			ShowThirdPartyService();
 			ShowDisposable();
 			await ShowEntityFrameworkAsync(stoppingToken);
+			await ShowDapperAsync(stoppingToken);
 			await ShowAcmeAsync(stoppingToken);
 			ShowBogus();
 			await _compression.ShowBrotliAsync();
@@ -99,6 +105,7 @@ partial class Program : BackgroundService
 			_hashing.ShowHashing();
 			_linq.ShowLinqGroupBy();
 			_linq.ShowLeftJoin();
+			ShowHtmlToPdf();
 			Environment.Exit(0);
 		}
 		catch (Exception ex)
@@ -155,6 +162,29 @@ partial class Program : BackgroundService
 		}
 	}
 
+	private async Task ShowDapperAsync(CancellationToken stoppingToken)
+	{
+		using SqliteConnection conn = new(_config.GetConnectionString("MyDatabase")!);
+		await conn.OpenAsync(stoppingToken);
+
+		// Eager returning a list
+		IEnumerable<Foo> foos = conn.Query<Foo>("SELECT * FROM Foos", buffered: true/*default*/);
+		_logger.LogInformation("Buffered: {type}", foos.GetType().Name);
+		foreach (Foo foo in foos)
+		{
+			_logger.LogInformation("Foo: {Foo}", foo.Name);
+		}
+
+
+		// Lazy IEnumerable instead of returning a list
+		foos = conn.Query<Foo>("SELECT * FROM Foos", buffered: false);
+		_logger.LogInformation("Not buffered: {type}", foos.GetType().Name);
+		foreach (Foo foo in foos)
+		{
+			_logger.LogInformation("Foo: {Foo}", foo.Name);
+		}
+	}
+
 	private async Task ShowAcmeAsync(CancellationToken stoppingToken)
 	{
 		for (int i = 0; i < 3; i++)
@@ -167,5 +197,30 @@ partial class Program : BackgroundService
 	{
 		BogusPerson person = BogusPerson.Generate();
 		_logger.LogInformation("{person}", JsonSerializer.Serialize(person, new JsonSerializerOptions { WriteIndented = true }));
+	}
+
+	private void ShowHtmlToPdf()
+	{
+		var process = new Process
+		{
+			StartInfo = new ProcessStartInfo
+			{
+				CreateNoWindow = true,
+				RedirectStandardOutput = true,
+				RedirectStandardInput = true,
+				UseShellExecute = false,
+				FileName = @"C:\wkhtmltopdf\bin\wkhtmltopdf.exe",
+				Arguments = @"c:\temp\1.htm c:\temp\1.pdf"
+			},
+			EnableRaisingEvents = true
+		};
+		process.OutputDataReceived += (sender, e) =>
+		{
+			//Debug.Write(e.Data);
+		};
+		process.Start();
+		process.BeginOutputReadLine();
+		process.WaitForExit();
+		process.CancelOutputRead();
 	}
 }
